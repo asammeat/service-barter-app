@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../screens/login_screen.dart';
-import '../screens/home_screen.dart';
+import 'home_screen.dart';
+import 'login_screen.dart';
 
 class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-
-    return session == null ? LoginScreen() : HomeScreen();
-  }
-}
-
-class LoginScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(body: Center(child: Text('Login')));
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(body: Center(child: Text('Home')));
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final session = snapshot.data!.session;
+          if (session != null) {
+            return HomeScreen();
+          } else {
+            return LoginScreen();
+          }
+        }
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      },
+    );
   }
 }

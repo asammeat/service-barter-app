@@ -1,31 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
 
-  Future<void> _signIn() async {
+  Future<void> _signUp() async {
+    if (_passwordController.text != _confirmPasswordController.text) {
+      setState(() {
+        _errorMessage = 'Passwords do not match';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
+      // Sign up with email and password
+      final AuthResponse res = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        data: {'email': _emailController.text.trim()},
+        emailRedirectTo: 'io.supabase.flutterquickstart://login-callback/',
       );
+
+      if (res.user != null) {
+        // Create a profile in the profiles table
+        await Supabase.instance.client.from('profiles').insert({
+          'id': res.user!.id,
+          'email': _emailController.text.trim(),
+          'created_at': DateTime.now().toIso8601String(),
+        });
+
+        // Sign in immediately after registration
+        await Supabase.instance.client.auth.signInWithPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registration successful!')),
+          );
+          Navigator.pop(context);
+        }
+      }
     } on AuthException catch (error) {
       setState(() {
         _errorMessage = error.message;
@@ -41,13 +73,14 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(title: const Text('Register')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -71,6 +104,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               obscureText: true,
             ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _confirmPasswordController,
+              decoration: const InputDecoration(
+                labelText: 'Confirm Password',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
@@ -81,23 +123,18 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading ? null : _signIn,
+              onPressed: _isLoading ? null : _signUp,
               child:
                   _isLoading
                       ? const CircularProgressIndicator()
-                      : const Text('Login'),
+                      : const Text('Register'),
             ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RegisterScreen(),
-                  ),
-                );
+                Navigator.pop(context);
               },
-              child: const Text('Don\'t have an account? Register'),
+              child: const Text('Already have an account? Login'),
             ),
           ],
         ),
